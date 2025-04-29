@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Interactive Reader</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 1rem; background: #f4f4f4; color: #222; transition: background 0.3s, color 0.3s; }
+  .dark-mode { background: #121212; color: #ddd; }
+  .top-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .file-controls, .view-controls, .category-controls { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 0.5rem;
+    background: #e0e0e0;
+    padding: 0.5rem;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+  }
+  .dark-mode .file-controls, .dark-mode .view-controls, .dark-mode .category-controls { 
+    background: #2a2a2a; 
+  }
+  textarea { 
+    width: 100%; 
+    height: 200px; 
+    margin-bottom: 1rem; 
+    padding: 0.5rem;
+    font-family: monospace;
+    border-radius: 5px;
+  }
+  #rendered { 
+    padding: 1rem; 
+    background: #fff; 
+    border: 1px solid #ccc; 
+    border-radius: 5px; 
+    min-height: 200px;
+  }
+  .dark-mode #rendered { background: #1e1e1e; border-color: #555; }
+  button { 
+    margin: 0; 
+    padding: 0.5rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    background: #4a90e2;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button:hover { background: #357ab8; }
+  select { 
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+  input[type="checkbox"] { transform: scale(1.2); margin-right: 0.5rem; }
+  a { color: #4a90e2; }
+  .dark-mode a { color: #7ab6ff; }
+  h1 { color: #333; }
+  .dark-mode h1 { color: #eee; }
+  .file-input-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+  }
+  .file-input-wrapper input[type=file] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .status-bar {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #666;
+  }
+  .dark-mode .status-bar { color: #aaa; }
+  .categories-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .category-tag {
+    padding: 0.3rem 0.6rem;
+    background: #ddd;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  .dark-mode .category-tag { background: #444; }
+  .category-tag:hover { background: #ccc; }
+  .dark-mode .category-tag:hover { background: #555; }
+  .category-tag.active { background: #4a90e2; color: white; }
+  .dark-mode .category-tag.active { background: #2a6cb7; }
+  #fileMetadata {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .modal-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  .modal {
+    background-color: #fff;
+    padding: 2rem;
+    border-radius: 5px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .dark-mode .modal {
+    background-color: #1e1e1e;
+    color: #ddd;
+  }
+  .modal-buttons {
+    margin-top: 1rem;
+    text-align: right;
+  }
+  .file-item {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    border-radius: 4px;
+    background: #f8f8f8;
+    display: flex;
+    align-items: center;
+  }
+  .dark-mode .file-item {
+    background: #2a2a2a;
+  }
+  .file-item-info {
+    margin-left: 0.5rem;
+    flex-grow: 1;
+  }
+  .file-item-category {
+    font-size: 0.8rem;
+    color: #4a90e2;
+    margin-left: 0.5rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>Markdown Interactive Reader</h1>
+
+<div class="top-controls">
+  <div class="view-controls">
+    <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+    <button onclick="toggleSideBySide()">Toggle View Mode</button>
+  </div>
+  
+  <div class="file-controls">
+    <div class="file-input-wrapper">
+      <button>Upload MD File</button>
+      <input type="file" accept=".md" id="fileInput" onchange="handleFileUpload(event)">
+    </div>
+    <button onclick="saveCurrentFile()">Save File</button>
+    <button onclick="loadSavedFile()">Load File</button>
+    <button onclick="deleteSavedFile()">Delete File</button>
+    <button onclick="exportCurrentFile()">Export Markdown</button>
+    <button onclick="cleanupStorage()">Cleanup Files</button>
+    <select id="savedFilesDropdown"></select>
+  </div>
+  
+  <div class="category-controls">
+    <button onclick="createCategory()">Create Category</button>
+    <select id="categoryDropdown" onchange="filterByCategory()">
+      <option value="all">All Categories</option>
+    </select>
+  </div>
+</div>
+
+<div id="fileMetadata"></div>
+<div id="editor-container">
+  <textarea id="markdownInput" placeholder="Paste your Markdown here..."></textarea>
+  <div id="rendered"></div>
+</div>
+
+<div class="categories-list" id="categoriesList"></div>
+<div class="status-bar" id="statusBar">Ready</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+const markdownInput = document.getElementById('markdownInput');
+const rendered = document.getElementById('rendered');
+const savedFilesDropdown = document.getElementById('savedFilesDropdown');
+const categoryDropdown = document.getElementById('categoryDropdown');
+const categoriesList = document.getElementById('categoriesList');
+const statusBar = document.getElementById('statusBar');
+const fileMetadata = document.getElementById('fileMetadata');
+const editorContainer = document.getElementById('editor-container');
+
+let currentFile = '';
+let currentCategory = 'all';
+let sideBySideMode = false;
+let hasUnsavedChanges = false;
+let originalContent = '';
+
+// Initialize display mode
+function initializeDisplayMode() {
+  const savedMode = localStorage.getItem('sideBySideMode') === 'true';
+  if (savedMode) {
+    toggleSideBySide();
+  }
+}
+
+function toggleSideBySide() {
+  sideBySideMode = !sideBySideMode;
+  localStorage.setItem('sideBySideMode', sideBySideMode);
+  
+  if (sideBySideMode) {
+    editorContainer.style.display = 'flex';
+    editorContainer.style.gap = '1rem';
+    markdownInput.style.width = '48%';
+    rendered.style.width = '48%';
+    rendered.style.marginLeft = '1%';
+  } else {
+    editorContainer.style.display = 'block';
+    markdownInput.style.width = '100%';
+    rendered.style.width = '100%';
+    rendered.style.marginLeft = '0';
+  }
+}
+
+function renderMarkdown() {
+  // First render the markdown normally with Marked
+  marked.setOptions({
+    gfm: true,         // GitHub-flavored markdown
+    breaks: true,      // Allow single line breaks
+    smartLists: true   // Smarter list behavior
+  });
+  
+  // Initial rendering of the content
+  rendered.innerHTML = marked.parse(markdownInput.value);
+  
+  // After Marked renders the HTML, find the list items that start with "- [ ]" or "- [x]"
+  // and replace them with interactive checkboxes
+  const listItems = rendered.querySelectorAll('li');
+  listItems.forEach(li => {
+    const text = li.innerHTML;
+    
+    // Check for unchecked boxes: "- [ ]"
+    if (text.startsWith('- [ ]')) {
+      li.innerHTML = `<input type="checkbox" onchange="saveCheckboxStates()"> ${text.substring(5).trim()}`;
+    } 
+    // Check for checked boxes: "- [x]"
+    else if (text.toLowerCase().startsWith('- [x]')) {
+      li.innerHTML = `<input type="checkbox" checked onchange="saveCheckboxStates()"> ${text.substring(5).trim()}`;
+    }
+  });
+  
+  // Also find and enable any disabled checkboxes that might have been created by Marked
+  const disabledCheckboxes = rendered.querySelectorAll('input[type="checkbox"][disabled]');
+  disabledCheckboxes.forEach(checkbox => {
+    checkbox.disabled = false;
+    checkbox.setAttribute('onchange', 'saveCheckboxStates()');
+  });
+  
+  updateStatusBar();
+  
+  // Check for unsaved changes
+  if (markdownInput.value !== originalContent) {
+    markUnsaved();
+  } else {
+    markSaved();
+  }
+}
+
+markdownInput.addEventListener('input', renderMarkdown);
+
+function markUnsaved() {
+  if (!hasUnsavedChanges) {
+    hasUnsavedChanges = true;
+    document.title = '* Markdown Interactive Reader';
+    showStatus('Unsaved changes');
+  }
+}
+
+function markSaved() {
+  hasUnsavedChanges = false;
+  document.title = 'Markdown Interactive Reader';
+  originalContent = markdownInput.value;
+}
+
+function showStatus(message, isError = false) {
+  if (message) {
+    statusBar.textContent = message;
+    statusBar.style.color = isError ? '#e74c3c' : '';
+    
+    // Reset after 3 seconds
+    setTimeout(() => {
+      statusBar.style.color = '';
+      updateStatusBar();
+    }, 3000);
+  }
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle('dark-mode');
+  localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+}
+
+function saveCheckboxStates() {
+  const checkboxes = rendered.querySelectorAll('input[type="checkbox"]');
+  const states = Array.from(checkboxes).map(cb => cb.checked);
+  if (currentFile) {
+    // Get full file data
+    const fileData = getFileData(currentFile);
+    fileData.checkboxStates = states;
+    // Save updated file data
+    localStorage.setItem('mdfile_' + currentFile, JSON.stringify(fileData));
+    markUnsaved();
+  }
+  updateStatusBar();
+}
+
+function restoreCheckboxStates() {
+  if (currentFile) {
+    const fileData = getFileData(currentFile);
+    const states = fileData.checkboxStates || [];
+    const checkboxes = rendered.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach((cb, idx) => cb.checked = states[idx] || false);
+  }
+}
+
+function saveCurrentFile() {
+  if (!markdownInput.value.trim()) {
+    showStatus('Nothing to save', true);
+    return;
+  }
+
+  let suggestedName = currentFile || 'untitled.md';
+  let filename = prompt('Enter a file name:', suggestedName);
+  
+  if (!filename) return;
+  if (!filename.endsWith('.md')) filename += '.md';
+
+  // Check for existing file
+  let baseFile = filename;
+  let fileExists = localStorage.getItem('mdfile_' + filename);
+  let i = 1;
+  
+  if (fileExists && baseFile === currentFile) {
+    // We're saving changes to current file
+    updateFileData(filename);
+    showStatus(`Updated ${filename}`);
+  } else if (fileExists) {
+    // Ask to overwrite or auto-increment filename
+    if (confirm(`File "${filename}" already exists. Overwrite?`)) {
+      updateFileData(filename);
+      showStatus(`Updated ${filename}`);
+    } else {
+      // Create new version with incremented name
+      while (localStorage.getItem('mdfile_' + filename)) {
+        filename = baseFile.replace(/(\(\d+\))?\.md$/, `(${i++}).md`);
+      }
+      saveNewFile(filename);
+    }
+  } else {
+    // New file
+    saveNewFile(filename);
+  }
+
+  updateSavedFilesList();
+  updateCategoriesList();
+  markSaved();
+}
+
+function saveNewFile(filename) {
+  // Get category
+  let category = prompt('Enter a category (or leave blank):', 'Uncategorized');
+  if (category === null) return;
+  if (!category) category = 'Uncategorized';
+  
+  // Create and save file data
+  const fileData = {
+    content: markdownInput.value,
+    category: category,
+    checkboxStates: [],
+    created: new Date().toISOString(),
+    modified: new Date().toISOString()
+  };
+  
+  localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+  currentFile = filename;
+  showStatus(`Saved as ${filename}`);
+  updateFileMetadata(fileData);
+}
+
+function updateFileData(filename) {
+  const fileData = getFileData(filename);
+  fileData.content = markdownInput.value;
+  fileData.modified = new Date().toISOString();
+  localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+  updateFileMetadata(fileData);
+}
+
+function getFileData(filename) {
+  try {
+    // Try the new format first
+    const data = localStorage.getItem('mdfile_' + filename);
+    if (data) {
+      return JSON.parse(data);
+    }
+    
+    // Fall back to old format if needed
+    const content = localStorage.getItem('mdcontent_' + filename);
+    const statesStr = localStorage.getItem('mdstate_' + filename);
+    const states = statesStr ? JSON.parse(statesStr) : [];
+    
+    // Convert to new format
+    return {
+      content: content || '',
+      category: 'Migrated',
+      checkboxStates: states,
+      created: new Date().toISOString(),
+      modified: new Date().toISOString()
+    };
+  } catch (e) {
+    console.error('Error getting file data:', e);
+    return {
+      content: '',
+      category: 'Uncategorized',
+      checkboxStates: [],
+      created: new Date().toISOString(),
+      modified: new Date().toISOString()
+    };
+  }
+}
+
+function loadSavedFile() {
+  const file = savedFilesDropdown.value;
+  if (!file) return;
+  
+  // Warn if current file has unsaved changes
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load another file anyway?')) {
+    return;
+  }
+  
+  currentFile = file;
+  const fileData = getFileData(file);
+  
+  markdownInput.value = fileData.content || '';
+  originalContent = markdownInput.value;
+  renderMarkdown();
+  setTimeout(restoreCheckboxStates, 100);
+  updateFileMetadata(fileData);
+  showStatus(`Loaded ${file}`);
+  markSaved();
+}
+
+function deleteSavedFile() {
+  if (!currentFile) {
+    showStatus('No file selected', true);
+    return;
+  }
+  
+  if (confirm(`Are you sure you want to delete "${currentFile}"?`)) {
+    // Remove both old and new format storage
+    localStorage.removeItem('mdfile_' + currentFile);
+    localStorage.removeItem('mdcontent_' + currentFile);
+    localStorage.removeItem('mdstate_' + currentFile);
+    
+    updateSavedFilesList();
+    updateCategoriesList();
+    
+    markdownInput.value = '';
+    rendered.innerHTML = '';
+    currentFile = '';
+    fileMetadata.innerHTML = '';
+    originalContent = '';
+    
+    showStatus(`Deleted file`);
+    markSaved();
+  }
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // Warn if current file has unsaved changes
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load a new file anyway?')) {
+    event.target.value = '';
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    markdownInput.value = e.target.result;
+    currentFile = file.name;
+    originalContent = markdownInput.value;
+    renderMarkdown();
+    showStatus(`Loaded ${file.name} from disk`);
+    markSaved();
+  };
+  reader.readAsText(file);
+}
+
+function exportCurrentFile() {
+  if (!markdownInput.value) {
+    showStatus('Nothing to export', true);
+    return;
+  }
+  
+  const checkboxes = rendered.querySelectorAll('input[type="checkbox"]');
+  let mdContent = markdownInput.value;
+  let mdLines = mdContent.split('\n');
+  let checkboxIndex = 0;
+  
+  for (let i = 0; i < mdLines.length; i++) {
+    if (mdLines[i].includes('- [ ]') || mdLines[i].includes('- [x]')) {
+      const isChecked = checkboxIndex < checkboxes.length && checkboxes[checkboxIndex].checked;
+      mdLines[i] = mdLines[i].replace(/- \[[x ]\]/i, isChecked ? '- [x]' : '- [ ]');
+      checkboxIndex++;
+    }
+  }
+  
+  const updatedMd = mdLines.join('\n');
+  const blob = new Blob([updatedMd], {type: 'text/markdown'});
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = currentFile || 'markdown_export.md';
+  a.click();
+  
+  URL.revokeObjectURL(url);
+  showStatus(`Exported to ${currentFile || 'markdown_export.md'}`);
+}
+
+function updateSavedFilesList() {
+  savedFilesDropdown.innerHTML = '<option value="">-- Select a file --</option>';
+  
+  // Get all files (from both old and new storage formats)
+  const files = [];
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('mdfile_')) {
+      files.push(key.replace('mdfile_', ''));
+    } else if (key.startsWith('mdcontent_')) {
+      const filename = key.replace('mdcontent_', '');
+      if (!files.includes(filename)) {
+        files.push(filename);
+      }
+    }
+  });
+  
+  // Filter by category if needed
+  let filesToShow = files;
+  if (currentCategory !== 'all') {
+    filesToShow = files.filter(filename => {
+      const fileData = getFileData(filename);
+      return fileData.category === currentCategory;
+    });
+  }
+  
+  // Sort alphabetically
+  filesToShow.sort();
+  
+  // Add to dropdown
+  filesToShow.forEach(filename => {
+    const option = document.createElement('option');
+    option.value = filename;
+    option.textContent = filename;
+    // Select current file
+    if (filename === currentFile) {
+      option.selected = true;
+    }
+    savedFilesDropdown.appendChild(option);
+  });
+  
+  // Show count in status
+  showStatus(`${filesToShow.length} files in view (${files.length} total)`);
+}
+
+function updateCategoriesList() {
+  // Get all categories
+  const categories = new Set(['Uncategorized']);
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('mdfile_')) {
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        if (data.category) {
+          categories.add(data.category);
+        }
+      } catch (e) {
+        console.error('Error parsing file data:', e);
+      }
+    }
+  });
+  
+  // Update dropdown
+  categoryDropdown.innerHTML = '<option value="all">All Categories</option>';
+  categories.forEach(category => {
+    const option = document.createElement('option');
+    option.value = category;
+    option.textContent = category;
+    if (category === currentCategory) {
+      option.selected = true;
+    }
+    categoryDropdown.appendChild(option);
+  });
+  
+  // Update tags display
+  categoriesList.innerHTML = '';
+  categories.forEach(category => {
+    const tag = document.createElement('div');
+    tag.className = 'category-tag';
+    if (category === currentCategory) {
+      tag.className += ' active';
+    }
+    tag.textContent = category;
+    tag.onclick = () => {
+      currentCategory = category;
+      updateCategoriesList();
+      updateSavedFilesList();
+    };
+    categoriesList.appendChild(tag);
+  });
+}
+
+function createCategory() {
+  const category = prompt('Enter a new category name:');
+  if (category) {
+    currentCategory = category;
+    updateCategoriesList();
+    updateSavedFilesList();
+    showStatus(`Category "${category}" created`);
+  }
+}
+
+function filterByCategory() {
+  currentCategory = categoryDropdown.value;
+  updateCategoriesList();
+  updateSavedFilesList();
+}
+
+function updateStatusBar(message, isError = false) {
+  if (message) {
+    showStatus(message, isError);
+  } else {
+    // Just update the checkbox count
+    const checkboxes = rendered.querySelectorAll('input[type="checkbox"]');
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    
+    if (checkboxes.length > 0) {
+      statusBar.textContent = `${checkedCount}/${checkboxes.length} tasks complete`;
+    } else {
+      statusBar.textContent = hasUnsavedChanges ? 'Unsaved changes' : 'Ready';
+    }
+  }
+}
+
+function updateFileMetadata(fileData) {
+  if (!fileData || !currentFile) {
+    fileMetadata.innerHTML = '';
+    return;
+  }
+  
+  const created = fileData.created ? new Date(fileData.created).toLocaleString() : 'Unknown';
+  const modified = fileData.modified ? new Date(fileData.modified).toLocaleString() : 'Unknown';
+  
+  fileMetadata.innerHTML = `
+    <strong>${currentFile}</strong> | 
+    Category: <span style="color: #4a90e2">${fileData.category || 'Uncategorized'}</span> | 
+    Created: ${created} | 
+    Modified: ${modified}
+  `;
+}
+
+function cleanupStorage() {
+  if (confirm('This will show all saved files for deletion. Continue?')) {
+    const files = [];
+    
+    // Collect all files
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('mdfile_')) {
+        const filename = key.replace('mdfile_', '');
+        const fileData = getFileData(filename);
+        files.push({ 
+          name: filename, 
+          category: fileData.category || 'Uncategorized',
+          modified: fileData.modified || 'Unknown' 
+        });
+      } else if (key.startsWith('mdcontent_')) {
+        const filename = key.replace('mdcontent_', '');
+        if (!localStorage.getItem('mdfile_' + filename)) {
+          files.push({ 
+            name: filename, 
+            category: 'Legacy Format',
+            modified: 'Unknown' 
+          });
+        }
+      }
+    });
+    
+    if (files.length === 0) {
+      showStatus('No files to clean up', true);
+      return;
+    }
+    
+    // Sort files by name
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Create modal
+    const modalContainer = document.createElement('div');
+    modalContainer.className = 'modal-container';
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    
+    const title = document.createElement('h3');
+    title.textContent = 'Select files to delete:';
+    
+    const fileList = document.createElement('div');
+    fileList.style.maxHeight = '400px';
+    fileList.style.overflowY = 'auto';
+    fileList.style.margin = '1rem 0';
+    
+    files.forEach(file => {
+      const fileItem = document.createElement('div');
+      fileItem.className = 'file-item';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.filename = file.name;
+      
+      const fileInfo = document.createElement('div');
+      fileInfo.className = 'file-item-info';
+      fileInfo.textContent = file.name;
+      
+      const fileCategory = document.createElement('div');
+      fileCategory.className = 'file-item-category';
+      fileCategory.textContent = file.category;
+      
+      fileItem.appendChild(checkbox);
+      fileItem.appendChild(fileInfo);
+      fileItem.appendChild(fileCategory);
+      fileList.appendChild(fileItem);
+    });
+    
+    const buttonGroup = document.createElement('div');
+    buttonGroup.className = 'modal-buttons';
+    
+    const selectAllBtn = document.createElement('button');
+    selectAllBtn.textContent = 'Select All';
+    selectAllBtn.style.marginRight = '0.5rem';
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete Selected';
+    deleteBtn.style.marginRight = '0.5rem';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    
+    buttonGroup.appendChild(selectAllBtn);
+    buttonGroup.appendChild(deleteBtn);
+    buttonGroup.appendChild(cancelBtn);
+    
+    modal.appendChild(title);
+    modal.appendChild(fileList);
+    modal.appendChild(buttonGroup);
+    modalContainer.appendChild(modal);
+    
+    document.body.appendChild(modalContainer);
+    
+    // Event handlers
+    selectAllBtn.addEventListener('click', () => {
+      const checkboxes = fileList.querySelectorAll('input[type="checkbox"]');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      checkboxes.forEach(cb => cb.checked = !allChecked);
+    });
+    
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(modalContainer);
+    });
+    
+    deleteBtn.addEventListener('click', () => {
+      const checkboxes = fileList.querySelectorAll('input[type="checkbox"]:checked');
+      if (checkboxes.length === 0) {
+        alert('No files selected.');
+        return;
+      }
+      
+      if (confirm(`Delete ${checkboxes.length} selected file(s)?`)) {
+        let deletedFiles = 0;
+        
+        checkboxes.forEach(checkbox => {
+          const filename = checkbox.dataset.filename;
+          localStorage.removeItem('mdfile_' + filename);
+          localStorage.removeItem('mdcontent_' + filename);
+          localStorage.removeItem('mdstate_' + filename);
+          
+          if (currentFile === filename) {
+            currentFile = '';
+            markdownInput.value = '';
+            rendered.innerHTML = '';
+            fileMetadata.innerHTML = '';
+            originalContent = '';
+            markSaved();
+          }
+          
+          deletedFiles++;
+        });
+        
+        updateSavedFilesList();
+        updateCategoriesList();
+        document.body.removeChild(modalContainer);
+        showStatus(`${deletedFiles} file(s) deleted`);
+      }
+    });
+  }
+}
+
+// Migration function for old storage format
+function migrateOldData() {
+  let migrated = 0;
+  
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('mdcontent_')) {
+      const filename = key.replace('mdcontent_', '');
+      // Check if already migrated
+      if (!localStorage.getItem('mdfile_' + filename)) {
+        const content = localStorage.getItem(key);
+        const statesStr = localStorage.getItem('mdstate_' + filename);
+        const states = statesStr ? JSON.parse(statesStr) : [];
+        
+        // Create new format
+        const fileData = {
+          content: content,
+          category: 'Migrated',
+          checkboxStates: states,
+          created: new Date().toISOString(),
+          modified: new Date().toISOString()
+        };
+        
+        localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+        migrated++;
+      }
+    }
+  });
+  
+  if (migrated > 0) {
+    showStatus(`Migrated ${migrated} files to new format`);
+  }
+}
+
+// Add a warning when leaving with unsaved changes
+window.addEventListener('beforeunload', (e) => {
+  if (hasUnsavedChanges) {
+    e.preventDefault();
+    e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+    return e.returnValue;
+  }
+});
+
+// On load
+if (localStorage.getItem('darkMode') === 'true') {
+  document.body.classList.add('dark-mode');
+}
+
+migrateOldData();
+updateSavedFilesList();
+updateCategoriesList();
+initializeDisplayMode();
+renderMarkdown();
+</script>
+
+</body>
+</html>
