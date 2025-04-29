@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Markdown Interactive Reader</title>
+<title>Markdown Folder</title>
 <style>
   body { font-family: Arial, sans-serif; margin: 0; padding: 1rem; background: #f4f4f4; color: #222; transition: background 0.3s, color 0.3s; }
   .dark-mode { background: #121212; color: #ddd; }
@@ -149,16 +149,41 @@
     color: #4a90e2;
     margin-left: 0.5rem;
   }
+  /* New styles for editor visibility toggle */
+  .toggle-editor-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    opacity: 0.7;
+  }
+  .toggle-editor-btn:hover {
+    opacity: 1;
+  }
+  .editor-container {
+    position: relative;
+  }
+  .hidden {
+    display: none !important;
+  }
+  /* New styles for preview-only mode */
+  .preview-only-mode #rendered {
+    width: 100%;
+    margin-left: 0;
+  }
 </style>
 </head>
 <body>
 
-<h1>Markdown Interactive Reader</h1>
+<h1>Markdown Folder</h1>
 
 <div class="top-controls">
   <div class="view-controls">
     <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
     <button onclick="toggleSideBySide()">Toggle View Mode</button>
+    <button id="toggleEditorBtn" onclick="toggleEditor()">Hide Editor</button>
   </div>
   
   <div class="file-controls">
@@ -183,7 +208,7 @@
 </div>
 
 <div id="fileMetadata"></div>
-<div id="editor-container">
+<div id="editor-container" class="editor-container">
   <textarea id="markdownInput" placeholder="Paste your Markdown here..."></textarea>
   <div id="rendered"></div>
 </div>
@@ -201,18 +226,26 @@ const categoriesList = document.getElementById('categoriesList');
 const statusBar = document.getElementById('statusBar');
 const fileMetadata = document.getElementById('fileMetadata');
 const editorContainer = document.getElementById('editor-container');
+const toggleEditorBtn = document.getElementById('toggleEditorBtn');
 
 let currentFile = '';
 let currentCategory = 'all';
 let sideBySideMode = false;
 let hasUnsavedChanges = false;
 let originalContent = '';
+let editorVisible = true;
 
 // Initialize display mode
 function initializeDisplayMode() {
   const savedMode = localStorage.getItem('sideBySideMode') === 'true';
   if (savedMode) {
     toggleSideBySide();
+  }
+  
+  // Check if editor was hidden previously
+  const editorHidden = localStorage.getItem('editorHidden') === 'true';
+  if (editorHidden) {
+    toggleEditor(false);
   }
 }
 
@@ -229,6 +262,35 @@ function toggleSideBySide() {
   } else {
     editorContainer.style.display = 'block';
     markdownInput.style.width = '100%';
+    rendered.style.width = '100%';
+    rendered.style.marginLeft = '0';
+  }
+  
+  // Adjust based on editor visibility
+  updateEditorVisibility();
+}
+
+// New function to toggle editor visibility
+function toggleEditor(animate = true) {
+  editorVisible = !editorVisible;
+  localStorage.setItem('editorHidden', !editorVisible);
+  
+  // Update button text
+  toggleEditorBtn.textContent = editorVisible ? 'Hide Editor' : 'Show Editor';
+  
+  updateEditorVisibility();
+}
+
+// Separate function to update visibility based on current state
+function updateEditorVisibility() {
+  if (editorVisible) {
+    markdownInput.classList.remove('hidden');
+    if (sideBySideMode) {
+      rendered.style.width = '48%';
+      rendered.style.marginLeft = '1%';
+    }
+  } else {
+    markdownInput.classList.add('hidden');
     rendered.style.width = '100%';
     rendered.style.marginLeft = '0';
   }
@@ -376,6 +438,11 @@ function saveCurrentFile() {
   updateSavedFilesList();
   updateCategoriesList();
   markSaved();
+  
+  // Hide the editor after saving
+  if (editorVisible) {
+    toggleEditor();
+  }
 }
 
 function saveNewFile(filename) {
@@ -459,6 +526,11 @@ function loadSavedFile() {
   updateFileMetadata(fileData);
   showStatus(`Loaded ${file}`);
   markSaved();
+  
+  // Show editor when loading a file
+  if (!editorVisible) {
+    toggleEditor();
+  }
 }
 
 function deleteSavedFile() {
@@ -504,7 +576,13 @@ function handleFileUpload(event) {
     originalContent = markdownInput.value;
     renderMarkdown();
     showStatus(`Loaded ${file.name} from disk`);
+    document.getElementById('fileInput').value = '';
     markSaved();
+    
+    // Automatically hide editor after upload is complete
+    if (editorVisible) {
+      toggleEditor();
+    }
   };
   reader.readAsText(file);
 }
@@ -866,6 +944,15 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+// Add keyboard shortcut for toggling editor visibility
+document.addEventListener('keydown', function(event) {
+  // Ctrl+E or Cmd+E to toggle editor
+  if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+    event.preventDefault();
+    toggleEditor();
+  }
+});
+
 // On load
 if (localStorage.getItem('darkMode') === 'true') {
   document.body.classList.add('dark-mode');
@@ -876,6 +963,27 @@ updateSavedFilesList();
 updateCategoriesList();
 initializeDisplayMode();
 renderMarkdown();
+
+// Add a helper tooltip about editor toggle keyboard shortcut
+const shortcutInfo = document.createElement('div');
+shortcutInfo.style.position = 'fixed';
+shortcutInfo.style.bottom = '10px';
+shortcutInfo.style.right = '10px';
+shortcutInfo.style.background = 'rgba(0,0,0,0.7)';
+shortcutInfo.style.color = 'white';
+shortcutInfo.style.padding = '5px 10px';
+shortcutInfo.style.borderRadius = '4px';
+shortcutInfo.style.fontSize = '12px';
+shortcutInfo.style.zIndex = '1000';
+shortcutInfo.style.opacity = '0.7';
+shortcutInfo.textContent = 'Tip: Press Ctrl+E to toggle editor';
+document.body.appendChild(shortcutInfo);
+
+setTimeout(() => {
+  shortcutInfo.style.opacity = '0';
+  shortcutInfo.style.transition = 'opacity 1s';
+  setTimeout(() => document.body.removeChild(shortcutInfo), 1000);
+}, 5000);
 </script>
 
 </body>
