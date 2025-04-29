@@ -11,8 +11,9 @@ Built for people who want to quickly paste, edit, and organize Markdown notes **
 
 - 📝 **Live Markdown editing** with GitHub-flavored Markdown (GFM) support
 - ✅ **Interactive task lists** (checkboxes are clickable and saved)
-- 🌙 **Dark mode toggle** with persistent setting
-- 🖥️ **Side-by-side editor and preview mode**
+- 🌙 **Dark mode**, **editor layout**, and **visibility** settings are saved automatically
+- 🖥️ **Switch between stacked or side-by-side layout**, or hide the editor for a clean, interactive view
+- ✍️ **Toggle editor visibility** with a button or `Ctrl+E` shortcut
 - 🗂️ **File saving, loading, and deleting** inside your browser
 - 📂 **Category system** to organize your notes
 - 🧹 **Cleanup utility** to batch-delete saved files
@@ -25,10 +26,11 @@ Built for people who want to quickly paste, edit, and organize Markdown notes **
 
 1. Open `mf.html` in any modern browser (Chrome, Firefox, Edge, etc.).
 2. Paste or write Markdown into the editor.
-3. Save your work into browser storage.
-4. Click on checkboxes to track tasks — your changes are remembered.
-5. Export Markdown files when needed.
-6. Organize notes into categories for better browsing.
+3. Optionally upload `.md` files from disk.
+4. Save your work into browser storage.
+5. Click on checkboxes to track tasks — your changes are remembered.
+6. Export Markdown files when needed.
+7. Organize notes into categories for better browsing.
 
 ---
 
