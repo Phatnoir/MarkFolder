@@ -15,7 +15,7 @@ Built for people who want to quickly paste, edit, and organize Markdown notes **
 - 🖥️ **Switch between stacked or side-by-side layout**, or hide the editor for a clean, interactive view
 - ✍️ **Toggle editor visibility** with a button or `Ctrl+E` shortcut
 - 🗂️ **File saving, loading, and deleting** inside your browser
-- 📂 **Category system** to organize your notes
+- 📂 **Category manager** with creation, deletion, reassignment, and per-category file filtering — fully local and persistent
 - 🧹 **Cleanup utility** to batch-delete saved files
 - 📤 **Markdown export** that updates task list states before download
 - 🔒 **Fully local** — no servers, no uploads, no logins
@@ -31,6 +31,7 @@ Built for people who want to quickly paste, edit, and organize Markdown notes **
 5. Click on checkboxes to track tasks — your changes are remembered.
 6. Export Markdown files when needed.
 7. Organize notes into categories for better browsing.
+8. Use the “Create Category” or “Delete Category” buttons to manage your note groups. When saving a new file, select or create a category via a visual interface.
 
 ---
 

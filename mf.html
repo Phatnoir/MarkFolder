@@ -202,6 +202,7 @@
   
   <div class="category-controls">
     <button onclick="createCategory()">Create Category</button>
+    <button onclick="deleteCategory()">Delete Category</button>
     <select id="categoryDropdown" onchange="filterByCategory()">
       <option value="all">All Categories</option>
     </select>
@@ -235,6 +236,35 @@ let sideBySideMode = false;
 let hasUnsavedChanges = false;
 let originalContent = '';
 let editorVisible = true;
+
+// Store categories in localStorage
+const CATEGORIES_STORAGE_KEY = 'md_categories';
+
+// Initialize categories from storage or default
+function initializeCategories() {
+  // Default categories
+  const defaultCategories = ['Uncategorized'];
+  
+  // Try to get existing categories from localStorage
+  let savedCategories = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+  if (savedCategories) {
+    try {
+      return JSON.parse(savedCategories);
+    } catch (e) {
+      console.error('Error parsing categories:', e);
+      return defaultCategories;
+    }
+  }
+  
+  // If no categories exist yet, save the defaults
+  localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(defaultCategories));
+  return defaultCategories;
+}
+
+// Function to save categories to localStorage
+function saveCategories(categories) {
+  localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+}
 
 // Initialize display mode
 function initializeDisplayMode() {
@@ -429,21 +459,176 @@ function saveCurrentFile() {
       while (localStorage.getItem('mdfile_' + filename)) {
         filename = baseFile.replace(/(\(\d+\))?\.md$/, `(${i++}).md`);
       }
-      saveNewFile(filename);
+      showCategorySelector(filename, true); // Show category selector for new file
     }
   } else {
     // New file
-    saveNewFile(filename);
+    showCategorySelector(filename, true); // Show category selector for new file
   }
+}
 
-  updateSavedFilesList();
-  updateCategoriesList();
-  markSaved();
+// New function to show a modal with category selection options
+function showCategorySelector(filename, isNewFile) {
+  // Create modal for category selection
+  const modalContainer = document.createElement('div');
+  modalContainer.className = 'modal-container';
   
-  // Hide the editor after saving
-  if (editorVisible) {
-    toggleEditor();
-  }
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.maxWidth = '400px';
+  
+  const title = document.createElement('h3');
+  title.textContent = isNewFile ? 'Select or create a category:' : 'Change category:';
+  
+  // Get all existing categories
+  const categories = getCategories();
+  
+  // Create category list
+  const categoryList = document.createElement('div');
+  categoryList.style.maxHeight = '300px';
+  categoryList.style.overflowY = 'auto';
+  categoryList.style.margin = '1rem 0';
+  
+  // Add radio buttons for existing categories
+  categories.forEach(category => {
+    const categoryItem = document.createElement('div');
+    categoryItem.className = 'file-item';
+    
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'category-selection';
+    radio.value = category;
+    radio.id = `category-${category}`;
+    if (category === 'Uncategorized') {
+      radio.checked = true;
+    }
+    
+    const label = document.createElement('label');
+    label.htmlFor = `category-${category}`;
+    label.textContent = category;
+    label.style.marginLeft = '0.5rem';
+    label.style.cursor = 'pointer';
+    
+    categoryItem.appendChild(radio);
+    categoryItem.appendChild(label);
+    categoryList.appendChild(categoryItem);
+  });
+  
+  // Add option to create a new category
+  const newCategoryItem = document.createElement('div');
+  newCategoryItem.className = 'file-item';
+  newCategoryItem.style.marginTop = '1rem';
+  
+  const newCategoryRadio = document.createElement('input');
+  newCategoryRadio.type = 'radio';
+  newCategoryRadio.name = 'category-selection';
+  newCategoryRadio.value = 'new-category';
+  newCategoryRadio.id = 'category-new';
+  
+  const newCategoryLabel = document.createElement('label');
+  newCategoryLabel.htmlFor = 'category-new';
+  newCategoryLabel.textContent = 'Create new category:';
+  newCategoryLabel.style.marginLeft = '0.5rem';
+  newCategoryLabel.style.cursor = 'pointer';
+  
+  const newCategoryInput = document.createElement('input');
+  newCategoryInput.type = 'text';
+  newCategoryInput.id = 'new-category-name';
+  newCategoryInput.style.marginTop = '0.5rem';
+  newCategoryInput.style.width = '100%';
+  newCategoryInput.style.padding = '0.3rem';
+  newCategoryInput.disabled = true;
+  
+  newCategoryItem.appendChild(newCategoryRadio);
+  newCategoryItem.appendChild(newCategoryLabel);
+  newCategoryItem.appendChild(newCategoryInput);
+  categoryList.appendChild(newCategoryItem);
+  
+  // Add event listeners for the new category option
+  newCategoryRadio.addEventListener('change', () => {
+    newCategoryInput.disabled = !newCategoryRadio.checked;
+    if (newCategoryRadio.checked) {
+      newCategoryInput.focus();
+    }
+  });
+  
+  // Buttons
+  const buttonGroup = document.createElement('div');
+  buttonGroup.className = 'modal-buttons';
+  
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.style.marginRight = '0.5rem';
+  
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  
+  buttonGroup.appendChild(saveBtn);
+  buttonGroup.appendChild(cancelBtn);
+  
+  // Put it all together
+  modal.appendChild(title);
+  modal.appendChild(categoryList);
+  modal.appendChild(buttonGroup);
+  modalContainer.appendChild(modal);
+  document.body.appendChild(modalContainer);
+  
+  // Event handlers
+  cancelBtn.addEventListener('click', () => {
+    document.body.removeChild(modalContainer);
+  });
+  
+  saveBtn.addEventListener('click', () => {
+    let selectedCategory = '';
+    const selectedRadio = document.querySelector('input[name="category-selection"]:checked');
+    
+    if (selectedRadio.value === 'new-category') {
+      selectedCategory = newCategoryInput.value.trim();
+      if (!selectedCategory) {
+        alert('Please enter a category name or select an existing category.');
+        return;
+      }
+      
+      // Add the new category to our categories list
+      addCategory(selectedCategory);
+    } else {
+      selectedCategory = selectedRadio.value;
+    }
+    
+    // Now save the file with the selected category
+    if (isNewFile) {
+      const fileData = {
+        content: markdownInput.value,
+        category: selectedCategory,
+        checkboxStates: [],
+        created: new Date().toISOString(),
+        modified: new Date().toISOString()
+      };
+      
+      localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+      currentFile = filename;
+      showStatus(`Saved as ${filename} in category "${selectedCategory}"`);
+      updateFileMetadata(fileData);
+    } else {
+      // Updating category of existing file
+      const fileData = getFileData(filename);
+      fileData.category = selectedCategory;
+      fileData.modified = new Date().toISOString();
+      localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+      updateFileMetadata(fileData);
+      showStatus(`Updated category to "${selectedCategory}"`);
+    }
+    
+    document.body.removeChild(modalContainer);
+    updateSavedFilesList();
+    updateCategoriesList();
+    markSaved();
+    
+    // Hide the editor after saving
+    if (editorVisible) {
+      toggleEditor();
+    }
+  });
 }
 
 function saveNewFile(filename) {
@@ -451,6 +636,9 @@ function saveNewFile(filename) {
   let category = prompt('Enter a category (or leave blank):', 'Uncategorized');
   if (category === null) return;
   if (!category) category = 'Uncategorized';
+  
+  // Add category if it's new
+  addCategory(category);
   
   // Create and save file data
   const fileData = {
@@ -528,8 +716,8 @@ function loadSavedFile() {
   showStatus(`Loaded ${file}`);
   markSaved();
   
-  // Show editor when loading a file
-  if (!editorVisible) {
+  // Hide editor when loading a file
+  if (editorVisible) {
     toggleEditor();
   }
 }
@@ -620,6 +808,43 @@ function exportCurrentFile() {
   showStatus(`Exported to ${currentFile || 'markdown_export.md'}`);
 }
 
+// New function to get categories
+function getCategories() {
+  let categories = initializeCategories();
+  
+  // Also scan files for any categories not in our list
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('mdfile_')) {
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        if (data.category && !categories.includes(data.category)) {
+          categories.push(data.category);
+        }
+      } catch (e) {
+        console.error('Error parsing file data:', e);
+      }
+    }
+  });
+  
+  return categories;
+}
+
+// New function to add a category
+function addCategory(category) {
+  if (!category || category.trim() === '') return;
+  
+  category = category.trim();
+  const categories = getCategories();
+  
+  if (!categories.includes(category)) {
+    categories.push(category);
+    saveCategories(categories);
+    return true;
+  }
+  
+  return false;
+}
+
 function updateSavedFilesList() {
   savedFilesDropdown.innerHTML = '<option value="">-- Select a file --</option>';
   
@@ -665,20 +890,8 @@ function updateSavedFilesList() {
 }
 
 function updateCategoriesList() {
-  // Get all categories
-  const categories = new Set(['Uncategorized']);
-  Object.keys(localStorage).forEach(key => {
-    if (key.startsWith('mdfile_')) {
-      try {
-        const data = JSON.parse(localStorage.getItem(key));
-        if (data.category) {
-          categories.add(data.category);
-        }
-      } catch (e) {
-        console.error('Error parsing file data:', e);
-      }
-    }
-  });
+  // Get all categories from our storage and scan for any missing ones
+  const categories = getCategories();
   
   // Update dropdown
   categoryDropdown.innerHTML = '<option value="all">All Categories</option>';
@@ -712,12 +925,238 @@ function updateCategoriesList() {
 
 function createCategory() {
   const category = prompt('Enter a new category name:');
-  if (category) {
-    currentCategory = category;
-    updateCategoriesList();
-    updateSavedFilesList();
-    showStatus(`Category "${category}" created`);
+  if (category && category.trim()) {
+    const newCategory = category.trim();
+    
+    // Add the category to our storage
+    if (addCategory(newCategory)) {
+      currentCategory = newCategory;
+      updateCategoriesList();
+      updateSavedFilesList();
+      showStatus(`Category "${newCategory}" created`);
+    } else {
+      showStatus(`Category "${newCategory}" already exists`, true);
+    }
   }
+}
+
+// New function to delete a category
+function deleteCategory() {
+  if (currentCategory === 'all') {
+    showStatus('Please select a category to delete', true);
+    return;
+  }
+  
+  if (currentCategory === 'Uncategorized') {
+    showStatus('Cannot delete the default category', true);
+    return;
+  }
+  
+  if (confirm(`Are you sure you want to delete the category "${currentCategory}"?`)) {
+    // Get all files in this category
+    const filesInCategory = [];
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('mdfile_')) {
+        const filename = key.replace('mdfile_', '');
+        const fileData = getFileData(filename);
+        if (fileData.category === currentCategory) {
+          filesInCategory.push(filename);
+        }
+      }
+    });
+    
+    // If there are files in this category, show options
+    if (filesInCategory.length > 0) {
+      showCategoryDeletionOptions(filesInCategory);
+    } else {
+      // No files, just delete the category
+      deleteSelectedCategory();
+    }
+  }
+}
+
+// Function to show modal with category deletion options
+function showCategoryDeletionOptions(filesInCategory) {
+  // Create modal container
+  const modalContainer = document.createElement('div');
+  modalContainer.className = 'modal-container';
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.maxWidth = '500px';
+  
+  const title = document.createElement('h3');
+  title.textContent = `There are ${filesInCategory.length} files in category "${currentCategory}"`;
+  
+  const subtitle = document.createElement('p');
+  subtitle.textContent = 'What would you like to do with these files?';
+  
+  // Create options
+  const optionsContainer = document.createElement('div');
+  optionsContainer.style.margin = '1rem 0';
+  
+  // Option 1: Move to Uncategorized
+  const option1 = document.createElement('div');
+  option1.className = 'file-item';
+  
+  const radio1 = document.createElement('input');
+  radio1.type = 'radio';
+  radio1.name = 'category-deletion-option';
+  radio1.id = 'option-uncategorized';
+  radio1.value = 'uncategorized';
+  radio1.checked = true;
+  
+  const label1 = document.createElement('label');
+  label1.htmlFor = 'option-uncategorized';
+  label1.textContent = 'Move files to "Uncategorized"';
+  label1.style.marginLeft = '0.5rem';
+  label1.style.cursor = 'pointer';
+  
+  option1.appendChild(radio1);
+  option1.appendChild(label1);
+  optionsContainer.appendChild(option1);
+  
+  // Get all categories except the current one
+  const categories = getCategories().filter(cat => 
+    cat !== currentCategory && cat !== 'Uncategorized' // Exclude both current category and Uncategorized
+  );
+  
+  // Create radio buttons for all other existing categories
+  categories.forEach((category, index) => {
+    const optionItem = document.createElement('div');
+    optionItem.className = 'file-item';
+    
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'category-deletion-option';
+    radio.id = `option-category-${index}`;
+    radio.value = `category-${category}`;
+    
+    const label = document.createElement('label');
+    label.htmlFor = `option-category-${index}`;
+    label.textContent = `Move files to "${category}"`;
+    label.style.marginLeft = '0.5rem';
+    label.style.cursor = 'pointer';
+    
+    optionItem.appendChild(radio);
+    optionItem.appendChild(label);
+    optionsContainer.appendChild(optionItem);
+  });
+  
+  // Option: Delete files
+  const optionDelete = document.createElement('div');
+  optionDelete.className = 'file-item';
+  optionDelete.style.marginTop = '1rem';
+  
+  const radioDelete = document.createElement('input');
+  radioDelete.type = 'radio';
+  radioDelete.name = 'category-deletion-option';
+  radioDelete.id = 'option-delete-files';
+  radioDelete.value = 'delete-files';
+  
+  const labelDelete = document.createElement('label');
+  labelDelete.htmlFor = 'option-delete-files';
+  labelDelete.textContent = 'Delete all files in this category';
+  labelDelete.style.marginLeft = '0.5rem';
+  labelDelete.style.cursor = 'pointer';
+  labelDelete.style.color = '#e74c3c';
+  
+  optionDelete.appendChild(radioDelete);
+  optionDelete.appendChild(labelDelete);
+  optionsContainer.appendChild(optionDelete);
+  
+  // Buttons
+  const buttonGroup = document.createElement('div');
+  buttonGroup.className = 'modal-buttons';
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = 'Confirm';
+  confirmBtn.style.marginRight = '0.5rem';
+  
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  
+  buttonGroup.appendChild(confirmBtn);
+  buttonGroup.appendChild(cancelBtn);
+  
+  // Assemble the modal
+  modal.appendChild(title);
+  modal.appendChild(subtitle);
+  modal.appendChild(optionsContainer);
+  modal.appendChild(buttonGroup);
+  modalContainer.appendChild(modal);
+  document.body.appendChild(modalContainer);
+  
+  // Button event handlers
+  cancelBtn.addEventListener('click', () => {
+    document.body.removeChild(modalContainer);
+  });
+  
+  confirmBtn.addEventListener('click', () => {
+    const selectedOption = document.querySelector('input[name="category-deletion-option"]:checked').value;
+    
+    if (selectedOption === 'uncategorized') {
+      // Move files to Uncategorized
+      filesInCategory.forEach(filename => {
+        const fileData = getFileData(filename);
+        fileData.category = 'Uncategorized';
+        localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+      });
+      showStatus(`${filesInCategory.length} files moved to "Uncategorized"`);
+    } 
+    else if (selectedOption.startsWith('category-')) {
+      // Move files to selected category
+      const targetCategory = selectedOption.replace('category-', '');
+      filesInCategory.forEach(filename => {
+        const fileData = getFileData(filename);
+        fileData.category = targetCategory;
+        localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
+      });
+      showStatus(`${filesInCategory.length} files moved to "${targetCategory}"`);
+    }
+    else if (selectedOption === 'delete-files') {
+      // Delete all files if confirmed
+      if (confirm(`Are you sure you want to delete ${filesInCategory.length} files? This cannot be undone.`)) {
+        filesInCategory.forEach(filename => {
+          localStorage.removeItem('mdfile_' + filename);
+          localStorage.removeItem('mdcontent_' + filename);
+          localStorage.removeItem('mdstate_' + filename);
+          
+          if (currentFile === filename) {
+            currentFile = '';
+            markdownInput.value = '';
+            rendered.innerHTML = '';
+            fileMetadata.innerHTML = '';
+            originalContent = '';
+            markSaved();
+          }
+        });
+        showStatus(`${filesInCategory.length} files deleted`);
+      } else {
+        // User canceled file deletion
+        document.body.removeChild(modalContainer);
+        return;
+      }
+    }
+    
+    // Delete the category and update UI
+    deleteSelectedCategory();
+    document.body.removeChild(modalContainer);
+  });
+}
+
+// Function to delete the currently selected category
+function deleteSelectedCategory() {
+  const categories = getCategories();
+  const updatedCategories = categories.filter(cat => cat !== currentCategory);
+  saveCategories(updatedCategories);
+  
+  // Reset to "all" view
+  currentCategory = 'all';
+  updateCategoriesList();
+  updateSavedFilesList();
+  
+  showStatus(`Category "${currentCategory}" deleted`);
 }
 
 function filterByCategory() {
