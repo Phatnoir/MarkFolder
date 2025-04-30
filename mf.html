@@ -174,6 +174,52 @@
     width: 100%;
     margin-left: 0;
   }
+  .category-container {
+	margin-bottom: 1rem;
+  }
+  .category-files {
+    display: flex;
+    flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+	margin-left: 1rem;
+	padding: 0.5rem;
+	background: rgba(0,0,0,0.05);
+	border-radius: 8px;
+  }
+  .dark-mode .category-files {
+    background: rgba(255,255,255,0.05);
+  }
+  .file-bubble {
+	padding: 0.3rem 0.6rem;
+	background: #e0e0e0;
+	border-radius: 20px;
+	font-size: 0.8rem;
+	cursor: pointer;
+	max-width: 200px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+  }
+  .dark-mode .file-bubble {
+    background: #333;
+  }
+  .file-bubble:hover {
+	background: #4a90e2;
+	color: white;
+  }
+  .file-bubble.empty {
+	background: #ddd;
+	color: #777;
+	cursor: default;
+  }
+  .dark-mode .file-bubble.empty {
+	background: #444;
+	color: #999;
+  }
+  .hidden {
+	display: none !important;
+  }
 </style>
 </head>
 <body>
@@ -301,13 +347,18 @@ function toggleSideBySide() {
   updateEditorVisibility();
 }
 
-// New function to toggle editor visibility
+// Replace the existing toggleEditor function
 function toggleEditor(animate = true) {
   editorVisible = !editorVisible;
   localStorage.setItem('editorHidden', !editorVisible);
   
   // Update button text
   toggleEditorBtn.textContent = editorVisible ? 'Hide Editor' : 'Show Editor';
+  
+  // Hide all file lists when toggling editor
+  document.querySelectorAll('.category-files').forEach(el => {
+    el.classList.add('hidden');
+  });
   
   updateEditorVisibility();
 }
@@ -889,6 +940,7 @@ function updateSavedFilesList() {
   showStatus(`${filesToShow.length} files in view (${files.length} total)`);
 }
 
+// Replace the existing updateCategoriesList function with this one
 function updateCategoriesList() {
   // Get all categories from our storage and scan for any missing ones
   const categories = getCategories();
@@ -908,6 +960,11 @@ function updateCategoriesList() {
   // Update tags display
   categoriesList.innerHTML = '';
   categories.forEach(category => {
+    // Create container for the category and its files
+    const categoryContainer = document.createElement('div');
+    categoryContainer.className = 'category-container';
+    
+    // Create the category tag
     const tag = document.createElement('div');
     tag.className = 'category-tag';
     if (category === currentCategory) {
@@ -915,12 +972,90 @@ function updateCategoriesList() {
     }
     tag.textContent = category;
     tag.onclick = () => {
-      currentCategory = category;
-      updateCategoriesList();
-      updateSavedFilesList();
+      // Toggle the display of files
+      const filesList = categoryContainer.querySelector('.category-files');
+      if (filesList.classList.contains('hidden')) {
+        // Hide all other file lists first
+        document.querySelectorAll('.category-files').forEach(el => {
+          el.classList.add('hidden');
+        });
+        // Show this one
+        filesList.classList.remove('hidden');
+      } else {
+        filesList.classList.add('hidden');
+      }
     };
-    categoriesList.appendChild(tag);
+    
+    // Create the files list container (initially hidden)
+    const filesList = document.createElement('div');
+    filesList.className = 'category-files hidden';
+    
+    // Add files that belong to this category
+    let filesInCategory = getFilesInCategory(category);
+    if (filesInCategory.length > 0) {
+      filesInCategory.forEach(filename => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-bubble';
+        fileItem.textContent = filename;
+        fileItem.onclick = (e) => {
+          e.stopPropagation(); // Prevent triggering the category click
+          loadSpecificFile(filename);
+        };
+        filesList.appendChild(fileItem);
+      });
+    } else {
+      const emptyItem = document.createElement('div');
+      emptyItem.className = 'file-bubble empty';
+      emptyItem.textContent = 'No files';
+      filesList.appendChild(emptyItem);
+    }
+    
+    categoryContainer.appendChild(tag);
+    categoryContainer.appendChild(filesList);
+    categoriesList.appendChild(categoryContainer);
   });
+}
+
+// Add this new function to get files in a category
+function getFilesInCategory(category) {
+  const filesInCategory = [];
+  
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('mdfile_')) {
+      const filename = key.replace('mdfile_', '');
+      const fileData = getFileData(filename);
+      if (fileData.category === category) {
+        filesInCategory.push(filename);
+      }
+    }
+  });
+  
+  // Sort files alphabetically
+  return filesInCategory.sort();
+}
+
+// Add this new function to load a specific file when clicked
+function loadSpecificFile(filename) {
+  // Warn if current file has unsaved changes
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load another file anyway?')) {
+    return;
+  }
+  
+  currentFile = filename;
+  const fileData = getFileData(filename);
+  
+  markdownInput.value = fileData.content || '';
+  originalContent = markdownInput.value;
+  renderMarkdown();
+  setTimeout(restoreCheckboxStates, 100);
+  updateFileMetadata(fileData);
+  showStatus(`Loaded ${filename}`);
+  markSaved();
+  
+  // Hide editor when loading a file (if you want this behavior)
+  if (editorVisible) {
+    toggleEditor();
+  }
 }
 
 function createCategory() {
