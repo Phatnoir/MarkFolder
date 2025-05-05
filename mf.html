@@ -415,7 +415,7 @@ function renderMarkdown() {
   updateStatusBar();
   
   // Check for unsaved changes
-  if (markdownInput.value !== originalContent) {
+  if (markdownInput.value !== originalContent) {  
     markUnsaved();
   } else {
     markSaved();
@@ -457,15 +457,20 @@ function toggleDarkMode() {
 }
 
 function saveCheckboxStates() {
+  console.log('[saveCheckboxStates] called');
   const checkboxes = rendered.querySelectorAll('input[type="checkbox"]');
   const states = Array.from(checkboxes).map(cb => cb.checked);
   if (currentFile) {
-    // Get full file data
     const fileData = getFileData(currentFile);
-    fileData.checkboxStates = states;
-    // Save updated file data
-    localStorage.setItem('mdfile_' + currentFile, JSON.stringify(fileData));
-    markUnsaved();
+    const prevStates = JSON.stringify(fileData.checkboxStates || []);
+    const newStates = JSON.stringify(states);
+
+    // Only update and mark unsaved if the checkbox state has truly changed
+    if (prevStates !== newStates) {
+      fileData.checkboxStates = states;
+      localStorage.setItem('mdfile_' + currentFile, JSON.stringify(fileData));
+      markUnsaved();
+    }
   }
   updateStatusBar();
 }
@@ -475,7 +480,22 @@ function restoreCheckboxStates() {
     const fileData = getFileData(currentFile);
     const states = fileData.checkboxStates || [];
     const checkboxes = rendered.querySelectorAll('input[type="checkbox"]');
+
+    // Remove inline onchange attributes
+    checkboxes.forEach(cb => {
+      cb._originalOnChange = cb.getAttribute('onchange');
+      cb.removeAttribute('onchange');
+    });
+
     checkboxes.forEach((cb, idx) => cb.checked = states[idx] || false);
+
+    // Restore onchange attributes
+    checkboxes.forEach(cb => {
+      if (cb._originalOnChange) {
+        cb.setAttribute('onchange', cb._originalOnChange);
+      }
+      delete cb._originalOnChange;
+    });
   }
 }
 
@@ -712,6 +732,9 @@ function updateFileData(filename) {
   fileData.modified = new Date().toISOString();
   localStorage.setItem('mdfile_' + filename, JSON.stringify(fileData));
   updateFileMetadata(fileData);
+  originalContent = markdownInput.value; 
+  renderMarkdown(); // force a render after saving, in case stale content is in preview
+  markSaved();      // explicitly mark as saved AFTER rendering
 }
 
 function getFileData(filename) {
@@ -762,6 +785,9 @@ function loadSavedFile() {
   markdownInput.value = fileData.content || '';
   originalContent = markdownInput.value;
   renderMarkdown();
+  //console.log('[renderMarkdown] input:', markdownInput.value); //this and next two lines are for troubleshooting 
+  //console.log('[renderMarkdown] original:', originalContent);
+  //console.log('[renderMarkdown] equal?', markdownInput.value === originalContent);
   setTimeout(restoreCheckboxStates, 100);
   updateFileMetadata(fileData);
   showStatus(`Loaded ${file}`);
